@@ -1,22 +1,11 @@
 const express = require('express');
 const cors = require('cors');
-const crypto = require('crypto');
+const messageRouter = require('./routers/message.js');
+const userRouter = require('./routers/user.js');
+const USERS = require('./store/users.js');
+const MESSAGES = require('./store/messages.js');
 
 const PORT = process.env.PORT || 4000;
-let USERS = [
-  {
-    userName: 'Andrew',
-    password: '1234',
-    sessionId: null,
-  },
-
-  {
-    userName: 'Anna',
-    password: '2626',
-    sessionId: null,
-  },
-];
-const MESSAGES = [];
 
 const app = express();
 const server = require('http').createServer(app);
@@ -35,57 +24,8 @@ app.use(cors({
 }));
 app.use(express.json());
 
-app.get('/messages', (req, res) => {
-  res.json(MESSAGES);
-});
-
-app.post('/users/login', (req, res) => {
-  const { userName, password } = req.body;
-
-  const user = USERS.find(user => user.userName === userName);
-
-  if (user && user.password === password) {
-    const sessionId = crypto.randomBytes(16).toString('base64');
-    user.sessionId = sessionId;
-
-    res.json({
-      status: 'success',
-      sessionId: sessionId,
-    });
-  } else {
-    res.status(401).json({
-      status: 'error',
-    });
-  }
-
-  res.end();
-})
-
-app.post('/users/signup', (req, res) => {
-  const { userName, password } = req.body;
-
-  const user = USERS.find(user => user.userName === userName);
-
-  if (user) {
-    res.status(401).json({
-      status: 'error',
-    });
-
-    return;
-  }
-
-  const newUser = {
-    userName,
-    password,
-    sessionId: crypto.randomBytes(16).toString('base64'),
-  };
-
-  USERS.push(newUser);
-  res.json({
-    status: 'success',
-    sessionId: newUser.sessionId,
-  });
-})
+app.use('/messages', messageRouter);
+app.use('/users', userRouter);
 
 io.use((socket, next) => {
   const sessionId = socket.handshake.query.sessionId;
@@ -104,6 +44,7 @@ io.on('connection', (socket) => {
 
   socket.on('message', (data) => {
     const userName = USERS.find(user => user.sessionId === data.sessionId)?.userName;
+    
     if (userName) {
       const message = {
         ...data,
